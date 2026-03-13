@@ -171,7 +171,7 @@ tr:hover td{background:var(--s2);}
     <div class="fg"><label>Contraseña</label><input id="l-pass" type="password" placeholder="contraseña" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="doLogin()">Ingresar</button>
     <div class="login-err" id="login-err">Usuario o contraseña incorrectos</div>
-    <div class="login-hint">Max123 / Max123</div>
+    <div class="login-hint">admin / admin123</div>
   </div>
 </div>
 
@@ -343,7 +343,7 @@ function loadDB() {
   lastWeek.setDate(lastWeek.getDate() - 7);
   
   const initial = {
-    users: [{ user: 'demo', pass: 'demo', role: 'admin' }, { user: 'Max123', pass: 'Max123', role: 'admin' }, { user: 'tecnico', pass: '1234', role: 'tecnico' }],
+    users: [{ user: 'admin', pass: 'admin123', role: 'admin' }, { user: 'tecnico', pass: '1234', role: 'tecnico' }],
     devices: [
       { id: 'PUMP-01', name: 'Bomba Norte',       status: 'Operativo',    loc: 'Planta Norte',    lat: 21.0040, lng: -100.3860 },
       { id: 'PUMP-02', name: 'Bomba Sur',          status: 'Revisión',     loc: 'Planta Sur',      lat: 20.9990, lng: -100.3820 },
