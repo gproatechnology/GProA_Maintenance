@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="theme-color" content="#185FA5"/>
+<meta name="description" content="MantControl — Gestión de mantenimiento de activos industriales"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<title>MantControl Industrial</title>
+<style>
+:root{--blue:#185FA5;--blue-l:#E6F1FB;--blue-m:#378ADD;--green:#1D9E75;--green-l:#E1F5EE;--green-d:#085041;--green-b:#0F6E56;--amber:#EF9F27;--amber-l:#FAEEDA;--amber-d:#633806;--red:#E24B4A;--red-l:#FCEBEB;--red-d:#791F1F;--bg:#f5f5f3;--surface:#fff;--s2:#f5f5f3;--border:rgba(0,0,0,0.1);--border2:rgba(0,0,0,0.18);--text:#1a1a1a;--muted:#666;--hint:#999;--r:8px;--rl:12px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:14px;}
+
+/* LOGIN */
+#login-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:1000;}
+.login-box{background:var(--surface);border:0.5px solid var(--border2);border-radius:var(--rl);padding:36px 32px;width:340px;box-shadow:0 4px 24px rgba(0,0,0,.08);}
+.login-logo{font-size:20px;font-weight:700;color:var(--blue);margin-bottom:4px;}
+.login-sub{font-size:12px;color:var(--muted);margin-bottom:24px;}
+.login-box .fg{margin-bottom:12px;}
+.login-box label{font-size:12px;font-weight:500;color:var(--muted);display:block;margin-bottom:4px;}
+.login-box input{width:100%;padding:9px 12px;border:0.5px solid var(--border2);border-radius:var(--r);font-size:13px;outline:none;}
+.login-box input:focus{border-color:var(--blue);box-shadow:0 0 0 2px #B5D4F4;}
+.login-hint{font-size:11px;color:var(--hint);margin-top:10px;text-align:center;}
+.login-err{font-size:12px;color:var(--red);margin-top:8px;display:none;}
+
+/* APP LAYOUT */
+.app{display:flex;min-height:100vh;}
+.sidebar{width:210px;background:var(--surface);border-right:0.5px solid var(--border);display:flex;flex-direction:column;padding:16px 0;position:fixed;top:0;left:0;height:100vh;z-index:100;transition:transform .25s;}
+.logo{padding:0 16px 18px;border-bottom:0.5px solid var(--border);margin-bottom:10px;}
+.logo h1{font-size:15px;font-weight:700;color:var(--blue);}
+.logo p{font-size:11px;color:var(--muted);margin-top:2px;}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 16px;font-size:13px;cursor:pointer;color:var(--muted);border-left:2px solid transparent;transition:all .15s;user-select:none;}
+.nav-item:hover{background:var(--s2);color:var(--text);}
+.nav-item.active{color:var(--blue);border-left-color:var(--blue);background:var(--blue-l);font-weight:500;}
+.nav-user{padding:12px 16px;border-top:0.5px solid var(--border);display:flex;align-items:center;gap:8px;}
+.user-avatar{width:28px;height:28px;border-radius:50%;background:var(--blue-l);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;}
+.main{flex:1;margin-left:210px;display:flex;flex-direction:column;}
+.topbar{background:var(--surface);border-bottom:0.5px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
+.topbar h2{font-size:15px;font-weight:500;}
+.page{padding:20px 24px;display:flex;flex-direction:column;gap:16px;}
+.page.hidden{display:none;}
+
+/* Metrics */
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;}
+.mc{background:var(--s2);border-radius:var(--r);padding:14px;}
+.mc .lbl{font-size:12px;color:var(--muted);margin-bottom:4px;}
+.mc .val{font-size:26px;font-weight:600;}
+.mc .dlt{font-size:11px;margin-top:3px;}
+.up{color:var(--green-b);} .dn{color:#A32D2D;}
+
+/* Panels */
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.panel{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--rl);padding:16px 18px;}
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.ph h3{font-size:13px;font-weight:500;}
+.ph a{font-size:12px;color:var(--blue);cursor:pointer;}
+
+/* Badges */
+.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:var(--r);font-weight:500;}
+.b-ok{background:var(--green-l);color:var(--green-d);}
+.b-warn{background:var(--amber-l);color:var(--amber-d);}
+.b-err{background:var(--red-l);color:var(--red-d);}
+.b-mnt{background:var(--blue-l);color:#0C447C;}
+.b-gray{background:var(--s2);color:var(--muted);}
+
+/* Buttons */
+.btn{padding:8px 16px;border-radius:var(--r);border:0.5px solid var(--border2);background:transparent;cursor:pointer;font-size:13px;font-weight:500;transition:all .15s;}
+.btn:hover{background:var(--s2);}
+.btn-primary{background:var(--blue);color:#fff;border-color:var(--blue);}
+.btn-primary:hover{background:#0C447C;}
+.btn-sm{padding:5px 10px;font-size:12px;}
+.btn-success{background:var(--green);color:#fff;border-color:var(--green);}
+.btn-success:hover{background:var(--green-b);}
+.btn-danger{background:var(--red);color:#fff;border-color:var(--red);}
+
+/* Live */
+.live{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--green-b);background:var(--green-l);padding:4px 10px;border-radius:var(--r);}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* Device rows */
+.drow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);}
+.drow:last-child{border-bottom:none;}
+.dicon{width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.dinfo{flex:1;}
+.dname{font-size:13px;font-weight:500;}
+.dloc{font-size:11px;color:var(--hint);}
+
+/* Table */
+.tbl-wrap{border:0.5px solid var(--border);border-radius:var(--rl);overflow:hidden;overflow-x:auto;}
+table{width:100%;border-collapse:collapse;min-width:580px;}
+thead{background:var(--s2);}
+th{padding:10px 12px;font-size:11px;font-weight:500;color:var(--muted);text-align:left;border-bottom:0.5px solid var(--border);cursor:pointer;user-select:none;}
+th:hover{color:var(--text);}
+td{padding:10px 12px;font-size:13px;border-bottom:0.5px solid var(--border);vertical-align:top;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--s2);}
+
+/* Timeline */
+.tl{display:flex;flex-direction:column;}
+.tli{display:flex;gap:10px;padding:7px 0;}
+.tll{display:flex;flex-direction:column;align-items:center;}
+.tld{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px;}
+.tlln{width:1px;background:var(--border);flex:1;min-height:10px;margin-top:3px;}
+.tlt{font-size:13px;font-weight:500;}
+.tls{font-size:12px;color:var(--muted);margin-top:1px;}
+
+/* Map */
+#map{height:400px;border-radius:var(--r);overflow:hidden;}
+
+/* Bars */
+.brow{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
+.blbl{font-size:12px;color:var(--muted);width:85px;flex-shrink:0;}
+.btrack{flex:1;height:8px;background:var(--s2);border-radius:4px;overflow:hidden;}
+.bfill{height:100%;border-radius:4px;transition:width .9s ease;}
+
+/* Form */
+.fg{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
+.fg label{font-size:12px;font-weight:500;color:var(--muted);}
+.fg input,.fg select,.fg textarea{padding:8px 12px;border:0.5px solid var(--border2);border-radius:var(--r);font-size:13px;background:var(--surface);color:var(--text);outline:none;width:100%;}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--blue);box-shadow:0 0 0 2px #B5D4F4;}
+
+/* Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;}
+.overlay.hidden{display:none;}
+.modal{background:var(--surface);border-radius:var(--rl);padding:24px;width:480px;max-width:100%;max-height:90vh;overflow-y:auto;}
+
+/* Toolbar */
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.toolbar input,.toolbar select{padding:7px 12px;border:0.5px solid var(--border2);border-radius:var(--r);font-size:13px;background:var(--surface);color:var(--text);outline:none;}
+.toolbar input{flex:1;min-width:180px;}
+
+/* Success / info boxes */
+.success-box{background:var(--green-l);border-radius:var(--r);padding:16px;text-align:center;color:var(--green-d);}
+.info-box{background:var(--blue-l);border-radius:var(--r);padding:12px 14px;font-size:13px;color:#0C447C;}
+.warn-box{background:var(--amber-l);border-radius:var(--r);padding:12px 14px;font-size:13px;color:var(--amber-d);}
+
+/* QR reader */
+#qr-reader{margin-top:10px;}
+#qr-reader video{border-radius:var(--r);}
+
+/* Hamburger */
+.hamburger{display:none;background:none;border:none;cursor:pointer;font-size:22px;color:var(--text);padding:4px;}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:90;}
+
+/* Responsive */
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%);}
+  .sidebar.open{transform:translateX(0);}
+  .main{margin-left:0;}
+  .hamburger{display:block;}
+  .sidebar-overlay.show{display:block;}
+  .metrics{grid-template-columns:1fr 1fr;}
+  .panels{grid-template-columns:1fr;}
+  #map-layout{grid-template-columns:1fr!important;}
+  #map{height:260px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     LOGIN
+════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">MantControl</div>
+    <div class="login-sub">Gestión industrial de activos</div>
+    <div class="fg"><label>Usuario</label><input id="l-user" placeholder="usuario" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="fg"><label>Contraseña</label><input id="l-pass" type="password" placeholder="contraseña" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="doLogin()">Ingresar</button>
+    <div class="login-err" id="login-err">Usuario o contraseña incorrectos</div>
+    <div class="login-hint">demo / demo</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     APP
+════════════════════════════════════════ -->
+<div class="app" id="app" style="display:none">
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+  <div class="sidebar" id="sidebar">
+    <div class="logo"><h1>MantControl</h1><p>Gestión de activos</p></div>
+    <div class="nav-item active"  id="nav-dashboard" onclick="showPage('dashboard')"><span style="font-size:15px">▦</span> Dashboard</div>
+    <div class="nav-item"         id="nav-devices"   onclick="showPage('devices')">  <span style="font-size:15px">⊞</span> Dispositivos</div>
+    <div class="nav-item"         id="nav-map"        onclick="showPage('map')">       <span style="font-size:15px">◎</span> Mapa / Check-in</div>
+    <div class="nav-item"         id="nav-history"    onclick="showPage('history')">   <span style="font-size:15px">☰</span> Historial</div>
+    <div class="nav-item"         id="nav-reports"    onclick="showPage('reports')">   <span style="font-size:15px">↗</span> Reportes</div>
+    <div style="flex:1"></div>
+    <div class="nav-user">
+      <div class="user-avatar" id="user-avatar">?</div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:500" id="user-label">—</div><div style="font-size:11px;color:var(--muted)">Sesión activa</div></div>
+      <button class="btn btn-sm" onclick="doLogout()" title="Cerrar sesión">✕</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="hamburger" onclick="openSidebar()">☰</button>
+        <h2 id="page-title">Dashboard</h2>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <div class="live"><div class="dot"></div>En vivo</div>
+        <button class="btn btn-primary" onclick="showPage('map')">+ Check-in</button>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="page" id="page-dashboard">
+      <div class="metrics">
+        <div class="mc"><div class="lbl">Total dispositivos</div><div class="val" id="m-total">0</div><div class="dlt up" id="m-total-d"></div></div>
+        <div class="mc"><div class="lbl">Check-ins totales</div><div class="val" id="m-ci">0</div><div class="dlt up" id="m-ci-d"></div></div>
+        <div class="mc"><div class="lbl">Técnicos activos</div><div class="val" id="m-tech">0</div><div class="dlt up"></div></div>
+        <div class="mc"><div class="lbl">Check-ins hoy</div><div class="val" id="m-today">0</div><div class="dlt up" id="m-today-d"></div></div>
+      </div>
+      <div class="panels">
+        <div class="panel">
+          <div class="ph"><h3>Dispositivos recientes</h3><a onclick="showPage('devices')">Ver todos →</a></div>
+          <div id="dash-devices"></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><h3>Crecimiento de check-ins</h3></div>
+          <div style="height:190px;position:relative"><canvas id="trendChart"></canvas></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><h3>Trazabilidad reciente</h3><a onclick="showPage('history')">Ver todo →</a></div>
+        <div class="tl" id="dash-timeline"></div>
+      </div>
+    </div>
+
+    <!-- DEVICES -->
+    <div class="page hidden" id="page-devices">
+      <div class="toolbar">
+        <input type="text" id="dev-search" placeholder="Buscar dispositivo, ubicación..." oninput="renderDevices()">
+        <select id="dev-status" onchange="renderDevices()">
+          <option value="">Todos los estados</option>
+          <option>Operativo</option><option>Revisión</option><option>Mantenimiento</option><option>Falla</option>
+        </select>
+        <span style="font-size:12px;color:var(--hint)" id="dev-count"></span>
+        <button class="btn btn-primary btn-sm" onclick="openAddDevice()">+ Dispositivo</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th onclick="sortDevices('name')">Dispositivo</th>
+            <th onclick="sortDevices('status')">Estado</th>
+            <th onclick="sortDevices('loc')">Ubicación</th>
+            <th>Check-ins</th>
+            <th>Acciones</th>
+          </tr></thead>
+          <tbody id="dev-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MAP / CHECK-IN -->
+    <div class="page hidden" id="page-map">
+      <div style="display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start" id="map-layout">
+        <div class="panel" style="padding:0;overflow:hidden;">
+          <div style="padding:10px 14px;border-bottom:0.5px solid var(--border);font-size:13px;color:var(--muted)">
+            Haz clic en el mapa para fijar la ubicación del check-in
+          </div>
+          <div id="map"></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><h3>Registrar check-in</h3></div>
+          <div id="ci-form-area"></div>
+          <div style="margin-top:16px">
+            <div style="font-size:12px;font-weight:500;color:var(--hint);margin-bottom:8px">Leyenda de estados</div>
+            <div id="map-legend"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="page hidden" id="page-history">
+      <div class="panel">
+        <div class="ph">
+          <h3>Historial de check-ins</h3>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-size:12px;color:var(--hint)" id="hist-count"></span>
+            <button class="btn btn-sm" onclick="exportCSV()">↓ Exportar CSV</button>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Dispositivo</th><th>Técnico</th><th>Ubicación GPS</th><th>Notas</th><th>Fecha y hora</th></tr></thead>
+            <tbody id="hist-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div class="page hidden" id="page-reports">
+      <div class="metrics">
+        <div class="mc"><div class="lbl">Operativos</div><div class="val" id="r-ok" style="color:var(--green)">0</div></div>
+        <div class="mc"><div class="lbl">En revisión</div><div class="val" id="r-rev" style="color:var(--amber)">0</div></div>
+        <div class="mc"><div class="lbl">Falla</div><div class="val" id="r-err" style="color:var(--red)">0</div></div>
+        <div class="mc"><div class="lbl">Mantenimiento</div><div class="val" id="r-mnt" style="color:var(--blue)">0</div></div>
+      </div>
+      <div class="panels">
+        <div class="panel"><div class="ph"><h3>Estado de dispositivos</h3></div><div style="height:220px;position:relative"><canvas id="donutChart"></canvas></div></div>
+        <div class="panel"><div class="ph"><h3>Check-ins por técnico</h3></div><div style="height:220px;position:relative"><canvas id="techChart"></canvas></div></div>
+      </div>
+      <div class="panel"><div class="ph"><h3>Actividad mensual de check-ins</h3></div>
+        <div style="height:180px;position:relative"><canvas id="monthChart"></canvas></div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- MODAL -->
+<div class="overlay hidden" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
+<script>
+
+/* ═══════════════════════════════════════
+   DATABASE (localStorage persistente)
+════════════════════════════════════════ */
+const DB_KEY = 'mantcontrol_v2';
+
+function loadDB() {
+  const raw = localStorage.getItem(DB_KEY);
+  if (raw) return JSON.parse(raw);
+  const initial = {
+    users: [{ user: 'demo', pass: 'demo', role: 'admin' }, { user: 'tecnico', pass: '1234', role: 'tecnico' }],
+    devices: [
+      { id: 'PUMP-01', name: 'Bomba Norte',       status: 'Operativo',    loc: 'Planta Norte',    lat: 21.0040, lng: -100.3860 },
+      { id: 'PUMP-02', name: 'Bomba Sur',          status: 'Revisión',     loc: 'Planta Sur',      lat: 20.9990, lng: -100.3820 },
+      { id: 'COMP-01', name: 'Compresor Planta',   status: 'Operativo',    loc: 'Sala Máquinas',   lat: 21.0010, lng: -100.3780 },
+      { id: 'GEN-01',  name: 'Generador Aux',      status: 'Mantenimiento',loc: 'Patio Exterior',  lat: 21.0060, lng: -100.3810 },
+      { id: 'VALVE-01',name: 'Válvula Control',    status: 'Falla',        loc: 'Sector 3',        lat: 21.0020, lng: -100.3900 },
+      { id: 'SENS-01', name: 'Sensor Temperatura', status: 'Operativo',    loc: 'Zona 5',          lat: 21.0035, lng: -100.3845 },
+    ],
+    checkins: []
+  };
+  localStorage.setItem(DB_KEY, JSON.stringify(initial));
+  return initial;
+}
+
+let DB = loadDB();
+let currentUser = null;
+
+function saveDB() { localStorage.setItem(DB_KEY, JSON.stringify(DB)); }
+
+/* ═══════════════════════════════════════
+   LOGIN / LOGOUT
+════════════════════════════════════════ */
+function doLogin() {
+  const u = document.getElementById('l-user').value.trim();
+  const p = document.getElementById('l-pass').value;
+  const found = DB.users.find(x => x.user === u && x.pass === p);
+  if (!found) { document.getElementById('login-err').style.display = 'block'; return; }
+  currentUser = found;
+  sessionStorage.setItem('mc_user', JSON.stringify(found));
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  startApp();
+}
+
+function doLogout() {
+  sessionStorage.removeItem('mc_user');
+  currentUser = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('l-user').value = '';
+  document.getElementById('l-pass').value = '';
+}
+
+// Auto-login si hay sesión guardada
+const saved = sessionStorage.getItem('mc_user');
+if (saved) { currentUser = JSON.parse(saved); document.getElementById('login-screen').style.display = 'none'; document.getElementById('app').style.display = 'flex'; startApp(); }
+
+/* ═══════════════════════════════════════
+   NAV
+════════════════════════════════════════ */
+const PAGES = ['dashboard', 'devices', 'map', 'history', 'reports'];
+let mapInit = false, repInit = false;
+
+function showPage(id) {
+  PAGES.forEach(p => {
+    document.getElementById('page-' + p).classList.toggle('hidden', p !== id);
+    document.getElementById('nav-' + p).classList.toggle('active', p === id);
+  });
+  const T = { dashboard:'Dashboard', devices:'Dispositivos', map:'Mapa / Check-in', history:'Historial', reports:'Reportes' };
+  document.getElementById('page-title').textContent = T[id] || '';
+  closeSidebar();
+  if (id === 'map' && !mapInit) { initMap(); mapInit = true; }
+  if (id === 'devices') renderDevices();
+  if (id === 'history') renderHistory();
+  if (id === 'reports') renderReports();
+}
+
+function openSidebar() { document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebarOverlay').classList.add('show'); }
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarOverlay').classList.remove('show'); }
+
+/* ═══════════════════════════════════════
+   APP START
+════════════════════════════════════════ */
+let trendChart;
+
+function startApp() {
+  const u = currentUser.user;
+  document.getElementById('user-label').textContent = u;
+  document.getElementById('user-avatar').textContent = u[0].toUpperCase();
+  initDashboard();
+  renderDevices();
+}
+
+/* ═══════════════════════════════════════
+   HELPERS
+════════════════════════════════════════ */
+const SC = { 'Operativo':'#1D9E75', 'Revisión':'#EF9F27', 'Falla':'#E24B4A', 'Mantenimiento':'#378ADD' };
+const SB = { 'Operativo':'b-ok', 'Revisión':'b-warn', 'Falla':'b-err', 'Mantenimiento':'b-mnt' };
+function bh(s) { return `<span class="badge ${SB[s]||'b-gray'}">${s}</span>`; }
+function oi(id) { return id.startsWith('PUMP')?'💧':id.startsWith('COMP')?'⚙':id.startsWith('GEN')?'⚡':id.startsWith('VALVE')?'🔧':'📡'; }
+function today() { return new Date().toISOString().slice(0,10); }
+
+/* ═══════════════════════════════════════
+   DASHBOARD
+════════════════════════════════════════ */
+function initDashboard() {
+  updateDashMetrics();
+
+  // Devices list
+  document.getElementById('dash-devices').innerHTML = DB.devices.slice(0, 5).map(d => `
+    <div class="drow">
+      <div class="dicon" style="background:${SC[d.status]}22">${oi(d.id)}</div>
+      <div class="dinfo"><div class="dname">${d.name}</div><div class="dloc">${d.loc}</div></div>
+      ${bh(d.status)}
+    </div>`).join('');
+
+  // Timeline from recent checkins
+  renderDashTimeline();
+
+  // Trend chart
+  buildTrendChart();
+
+  // Live counter
+  setInterval(() => {
+    updateDashMetrics();
+    renderDashTimeline();
+  }, 5000);
+}
+
+function updateDashMetrics() {
+  const todayCIs = DB.checkins.filter(c => c.ts.slice(0,10) === today()).length;
+  const techs = [...new Set(DB.checkins.map(c => c.tech))].length;
+  document.getElementById('m-total').textContent = DB.devices.length;
+  document.getElementById('m-ci').textContent = DB.checkins.length;
+  document.getElementById('m-tech').textContent = techs;
+  document.getElementById('m-today').textContent = todayCIs;
+  document.getElementById('m-today-d').textContent = todayCIs > 0 ? `+${todayCIs} hoy` : 'Sin check-ins hoy';
+}
+
+function renderDashTimeline() {
+  const recent = [...DB.checkins].reverse().slice(0, 6);
+  document.getElementById('dash-timeline').innerHTML = recent.length
+    ? recent.map((c, i) => {
+        const dev = DB.devices.find(d => d.id === c.device);
+        return `<div class="tli">
+          <div class="tll"><div class="tld" style="background:${SC[dev?.status]||'#888'}"></div>${i < recent.length-1 ? '<div class="tlln"></div>' : ''}</div>
+          <div><div class="tlt">Check-in · ${dev?.name || c.device}</div><div class="tls">${c.tech} · ${c.loc||'GPS'} · ${new Date(c.ts).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}</div></div>
+        </div>`;
+      }).join('')
+    : '<div style="color:var(--hint);font-size:13px;padding:8px 0">Sin check-ins registrados aún</div>';
+}
+
+function buildTrendChart() {
+  const labels = [];
+  const data = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0,10);
+    labels.push(key.slice(5));
+    data.push(DB.checkins.filter(c => c.ts.slice(0,10) === key).length);
+  }
+  if (trendChart) trendChart.destroy();
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  trendChart = new Chart(ctx, { type: 'line', data: {
+    labels,
+    datasets: [{ data, borderColor: '#378ADD', backgroundColor: 'rgba(55,138,221,0.08)', fill: true, tension: .4, pointRadius: 3, pointBackgroundColor: '#378ADD' }]
+  }, options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+    scales: { x:{grid:{display:false},ticks:{font:{size:11},color:'#999'}}, y:{min:0,grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:11},color:'#999',stepSize:1}} }
+  }});
+}
+
+/* ═══════════════════════════════════════
+   DEVICES
+════════════════════════════════════════ */
+let devSort = { col: 'name', dir: 1 };
+function sortDevices(col) { devSort.dir = devSort.col === col ? devSort.dir * -1 : 1; devSort.col = col; renderDevices(); }
+
+function renderDevices() {
+  const q = (document.getElementById('dev-search')?.value || '').toLowerCase();
+  const fs = document.getElementById('dev-status')?.value || '';
+  let data = DB.devices.filter(d => (d.name + d.id + d.loc).toLowerCase().includes(q) && (!fs || d.status === fs));
+  data.sort((a, b) => (a[devSort.col] || '').localeCompare(b[devSort.col] || '') * devSort.dir);
+  document.getElementById('dev-count').textContent = data.length + ' dispositivos';
+  document.getElementById('dev-tbody').innerHTML = data.map(d => {
+    const ci = DB.checkins.filter(c => c.device === d.id).length;
+    return `<tr>
+      <td><div style="font-weight:500">${d.name}</div><div style="font-size:11px;color:var(--hint)">ID: ${d.id}</div></td>
+      <td>${bh(d.status)}</td>
+      <td style="font-size:12px;color:var(--muted)">${d.loc}</td>
+      <td style="font-size:12px;color:var(--muted)">${ci} check-in${ci !== 1 ? 's' : ''}</td>
+      <td><div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="openDevDetail('${d.id}')">Detalle</button>
+        <button class="btn btn-sm btn-primary" onclick="showPage('map')">Check-in</button>
+        <button class="btn btn-sm" onclick="changeStatus('${d.id}')">Estado</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+function openAddDevice() {
+  document.getElementById('modal-content').innerHTML = `
+    <div class="ph"><h3>Agregar dispositivo</h3></div>
+    <div class="fg"><label>ID único</label><input id="nd-id" placeholder="PUMP-03"></div>
+    <div class="fg"><label>Nombre</label><input id="nd-name" placeholder="Bomba de presión"></div>
+    <div class="fg"><label>Ubicación</label><input id="nd-loc" placeholder="Sector 2"></div>
+    <div class="fg"><label>Estado inicial</label>
+      <select id="nd-status"><option>Operativo</option><option>Revisión</option><option>Mantenimiento</option><option>Falla</option></select></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" style="flex:1" onclick="saveNewDevice()">Guardar</button>
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+    </div>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+function saveNewDevice() {
+  const id = document.getElementById('nd-id').value.trim().toUpperCase();
+  const name = document.getElementById('nd-name').value.trim();
+  const loc = document.getElementById('nd-loc').value.trim();
+  const status = document.getElementById('nd-status').value;
+  if (!id || !name) { alert('ID y nombre son requeridos'); return; }
+  if (DB.devices.find(d => d.id === id)) { alert('Ya existe un dispositivo con ese ID'); return; }
+  DB.devices.push({ id, name, status, loc, lat: 21.003, lng: -100.384 });
+  saveDB();
+  closeModal();
+  renderDevices();
+  updateDashMetrics();
+}
+
+function changeStatus(id) {
+  const dev = DB.devices.find(d => d.id === id);
+  if (!dev) return;
+  document.getElementById('modal-content').innerHTML = `
+    <div class="ph"><h3>Cambiar estado · ${dev.name}</h3></div>
+    <div class="fg"><label>Estado actual</label>${bh(dev.status)}</div>
+    <div class="fg"><label>Nuevo estado</label>
+      <select id="ns-val"><option>Operativo</option><option>Revisión</option><option>Mantenimiento</option><option>Falla</option></select></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-primary" style="flex:1" onclick="applyStatus('${id}')">Aplicar</button>
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+    </div>`;
+  document.getElementById('ns-val').value = dev.status;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+function applyStatus(id) {
+  const dev = DB.devices.find(d => d.id === id);
+  if (!dev) return;
+  dev.status = document.getElementById('ns-val').value;
+  saveDB();
+  closeModal();
+  renderDevices();
+}
+
+function openDevDetail(id) {
+  const dev = DB.devices.find(d => d.id === id);
+  if (!dev) return;
+  const devCIs = [...DB.checkins].filter(c => c.device === id).reverse().slice(0, 5);
+  document.getElementById('modal-content').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+      <div><div style="font-weight:600;font-size:16px">${dev.name}</div><div style="font-size:12px;color:var(--hint)">ID: ${dev.id}</div></div>
+      ${bh(dev.status)}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;font-size:13px">
+      <div><span style="color:var(--muted)">Ubicación:</span> ${dev.loc}</div>
+      <div><span style="color:var(--muted)">Check-ins:</span> ${DB.checkins.filter(c=>c.device===id).length}</div>
+    </div>
+    <div style="font-weight:500;font-size:13px;margin-bottom:10px">Últimos check-ins</div>
+    ${devCIs.length ? `<div class="tbl-wrap"><table><thead><tr><th>Técnico</th><th>Fecha</th><th>Notas</th></tr></thead><tbody>
+      ${devCIs.map(c=>`<tr><td>${c.tech}</td><td style="font-size:11px;color:var(--hint)">${new Date(c.ts).toLocaleString('es-MX')}</td><td style="font-size:12px;color:var(--muted)">${c.notes||'—'}</td></tr>`).join('')}
+    </tbody></table></div>` : '<div style="color:var(--hint);font-size:13px">Sin check-ins registrados</div>'}
+    <button class="btn" style="width:100%;margin-top:16px" onclick="closeModal()">Cerrar</button>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+/* ═══════════════════════════════════════
+   MAP + CHECK-IN
+════════════════════════════════════════ */
+let leafletMap, pickedPos = null, userPos = null, qrScanner = null;
+
+function makeIcon(color) {
+  return L.divIcon({ className: '', html: `<div style="width:13px;height:13px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)"></div>`, iconSize:[13,13], iconAnchor:[6,6] });
+}
+
+function initMap() {
+  leafletMap = L.map('map').setView([21.003, -100.384], 15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(leafletMap);
+  DB.devices.forEach(d => {
+    L.marker([d.lat, d.lng], { icon: makeIcon(SC[d.status] || '#888') }).addTo(leafletMap)
+      .bindPopup(`<b>${d.name}</b><br>${d.status} · ${d.loc}`);
+  });
+  DB.checkins.forEach(c => c.lat && addCIMkr(c));
+  leafletMap.on('click', e => { pickedPos = e.latlng; updateGPS(); });
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(p => {
+      userPos = { lat: p.coords.latitude, lng: p.coords.longitude };
+      L.marker([userPos.lat, userPos.lng], { icon: makeIcon('#185FA5') }).addTo(leafletMap).bindPopup('Tu ubicación actual');
+      leafletMap.setView([userPos.lat, userPos.lng], 15);
+      updateGPS();
+    }, () => {});
+  }
+  renderCIForm(false);
+  document.getElementById('map-legend').innerHTML = [...Object.entries(SC), ['Tu ubicación','#185FA5']].map(([l,c])=>`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;color:var(--muted)">
+      <div style="width:10px;height:10px;border-radius:50%;background:${c};flex-shrink:0"></div>${l}
+    </div>`).join('');
+}
+
+function addCIMkr(c) {
+  if (!leafletMap || !c.lat) return;
+  L.circleMarker([c.lat, c.lng], { radius: 5, color: '#185FA5', fillColor: '#185FA5', fillOpacity: 0.7, weight: 2 })
+    .addTo(leafletMap)
+    .bindPopup(`<b>${DB.devices.find(d=>d.id===c.device)?.name||c.device}</b><br>${c.tech}<br><small>${new Date(c.ts).toLocaleString('es-MX')}</small>`);
+}
+
+function updateGPS() {
+  const el = document.getElementById('gps-display');
+  if (!el) return;
+  const pos = pickedPos || userPos;
+  el.textContent = pos ? `Lat: ${pos.lat.toFixed(5)}, Lng: ${pos.lng.toFixed(5)}` : 'Haz clic en el mapa o activa GPS...';
+}
+
+function renderCIForm(success) {
+  const area = document.getElementById('ci-form-area');
+  if (success) {
+    buildTrendChart();
+    area.innerHTML = `<div class="success-box"><div style="font-size:28px;margin-bottom:8px">✓</div><div style="font-weight:600">Check-in registrado</div><div style="font-size:12px;margin-top:4px">Datos guardados correctamente</div></div>`;
+    setTimeout(() => renderCIForm(false), 3000);
+    return;
+  }
+  const pos = pickedPos || userPos;
+  area.innerHTML = `
+    <div class="fg"><label>Dispositivo *</label>
+      <select id="ci-dev"><option value="">Seleccionar...</option>${DB.devices.map(d=>`<option value="${d.id}">${d.name} — ${d.status}</option>`).join('')}</select></div>
+    <div class="fg"><label>Técnico responsable *</label>
+      <input id="ci-tech" placeholder="Nombre del técnico" value="${currentUser?.user||''}"></div>
+    <div class="fg"><label>Estado del equipo</label>
+      <select id="ci-status"><option value="">Sin cambio</option><option>Operativo</option><option>Revisión</option><option>Mantenimiento</option><option>Falla</option></select></div>
+    <div class="fg"><label>Notas</label>
+      <textarea id="ci-notes" rows="2" style="resize:vertical;padding:8px 12px;border:0.5px solid var(--border2);border-radius:var(--r);font-size:13px;width:100%;outline:none"></textarea></div>
+    <div class="fg"><label>Coordenadas GPS</label>
+      <div id="gps-display" style="background:var(--s2);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--muted)">${pos?`Lat: ${pos.lat.toFixed(5)}, Lng: ${pos.lng.toFixed(5)}`:'Haz clic en el mapa o activa GPS...'}</div></div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn btn-sm" style="flex:1" onclick="getGPS()">📍 GPS actual</button>
+      <button class="btn btn-sm" style="flex:1" onclick="toggleQR()">📷 Escanear QR</button>
+    </div>
+    <div id="qr-area" style="display:none;margin-bottom:12px"><div id="qr-reader"></div></div>
+    <button class="btn btn-primary" style="width:100%" onclick="submitCI()">Validar check-in</button>`;
+}
+
+function getGPS() {
+  if (!navigator.geolocation) { alert('GPS no disponible en este dispositivo'); return; }
+  navigator.geolocation.getCurrentPosition(p => {
+    userPos = { lat: p.coords.latitude, lng: p.coords.longitude };
+    pickedPos = null;
+    updateGPS();
+  }, () => alert('No se pudo obtener la ubicación GPS'));
+}
+
+function toggleQR() {
+  const area = document.getElementById('qr-area');
+  const showing = area.style.display !== 'none';
+  if (showing) {
+    area.style.display = 'none';
+    if (qrScanner) { try { qrScanner.clear(); } catch(e){} qrScanner = null; }
+    return;
+  }
+  area.style.display = 'block';
+  try {
+    qrScanner = new Html5QrcodeScanner('qr-reader', { fps: 10, qrbox: 200 });
+    qrScanner.render(result => {
+      const sel = document.getElementById('ci-dev');
+      if (sel) { const opt = [...sel.options].find(o => o.value === result); if (opt) sel.value = result; }
+      area.style.display = 'none';
+      qrScanner.clear(); qrScanner = null;
+    }, () => {});
+  } catch(e) { area.innerHTML = '<div class="warn-box">QR no disponible en este navegador</div>'; }
+}
+
+function submitCI() {
+  const dev = document.getElementById('ci-dev').value;
+  const tech = document.getElementById('ci-tech').value.trim();
+  const newStatus = document.getElementById('ci-status').value;
+  const notes = document.getElementById('ci-notes').value.trim();
+  if (!dev) { alert('Selecciona un dispositivo'); return; }
+  if (!tech) { alert('Ingresa el técnico responsable'); return; }
+  const pos = pickedPos || userPos || null;
+  const ci = { device: dev, tech, notes, status: newStatus, lat: pos?.lat || null, lng: pos?.lng || null, ts: new Date().toISOString() };
+  DB.checkins.push(ci);
+  if (newStatus) { const d = DB.devices.find(x => x.id === dev); if (d) d.status = newStatus; }
+  saveDB();
+  if (pos) addCIMkr(ci);
+  pickedPos = null;
+  updateDashMetrics();
+  renderDashTimeline();
+  renderCIForm(true);
+}
+
+/* ═══════════════════════════════════════
+   HISTORY + CSV EXPORT
+════════════════════════════════════════ */
+function renderHistory() {
+  const all = [...DB.checkins].reverse();
+  document.getElementById('hist-count').textContent = all.length + ' registros';
+  document.getElementById('hist-tbody').innerHTML = all.length ? all.map(c => {
+    const dev = DB.devices.find(d => d.id === c.device);
+    return `<tr>
+      <td><div style="font-weight:500">${dev?.name || c.device}</div><div style="font-size:11px;color:var(--hint)">${c.device}</div></td>
+      <td style="font-size:12px">${c.tech}</td>
+      <td style="font-size:11px;color:var(--muted)">${c.lat ? `${Number(c.lat).toFixed(4)}, ${Number(c.lng).toFixed(4)}` : '—'}</td>
+      <td style="font-size:12px;color:var(--muted)">${c.notes || '—'}</td>
+      <td style="font-size:12px;color:var(--hint)">${new Date(c.ts).toLocaleString('es-MX')}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--hint);padding:24px">Sin check-ins registrados</td></tr>';
+}
+
+function exportCSV() {
+  let csv = 'Dispositivo,Técnico,Latitud,Longitud,Notas,Fecha\n';
+  DB.checkins.forEach(c => {
+    const dev = DB.devices.find(d => d.id === c.device);
+    csv += `"${dev?.name||c.device}","${c.tech}","${c.lat||''}","${c.lng||''}","${(c.notes||'').replace(/"/g,"'")}","${new Date(c.ts).toLocaleString('es-MX')}"\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `mantcontrol_checkins_${today()}.csv`; a.click();
+}
+
+/* ═══════════════════════════════════════
+   REPORTS
+════════════════════════════════════════ */
+function renderReports() {
+  if (repInit) return; repInit = true;
+  const bs = s => DB.devices.filter(d => d.status === s).length;
+  document.getElementById('r-ok').textContent  = bs('Operativo');
+  document.getElementById('r-rev').textContent = bs('Revisión');
+  document.getElementById('r-err').textContent = bs('Falla');
+  document.getElementById('r-mnt').textContent = bs('Mantenimiento');
+
+  new Chart(document.getElementById('donutChart'), { type: 'doughnut', data: {
+    labels: ['Operativo','Revisión','Falla','Mantenimiento'],
+    datasets: [{ data: ['Operativo','Revisión','Falla','Mantenimiento'].map(s=>bs(s)), backgroundColor:['#1D9E75','#EF9F27','#E24B4A','#378ADD'], borderWidth:0 }]
+  }, options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom',labels:{font:{size:11}}}}}});
+
+  const techMap = {};
+  DB.checkins.forEach(c => { techMap[c.tech] = (techMap[c.tech]||0)+1; });
+  const techs = Object.entries(techMap).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  new Chart(document.getElementById('techChart'), { type: 'bar', data: {
+    labels: techs.map(t=>t[0]),
+    datasets: [{ data: techs.map(t=>t[1]), backgroundColor:'#378ADD', borderRadius:4 }]
+  }, options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, indexAxis:'y',
+    scales: { x:{grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:11},color:'#999'}}, y:{grid:{display:false},ticks:{font:{size:11},color:'#999'}} }
+  }});
+
+  const months = [];
+  const mdata = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(); d.setMonth(d.getMonth() - i);
+    const key = d.toISOString().slice(0,7);
+    months.push(key.slice(5) + '/' + key.slice(2,4));
+    mdata.push(DB.checkins.filter(c => c.ts.slice(0,7) === key).length);
+  }
+  new Chart(document.getElementById('monthChart'), { type: 'bar', data: {
+    labels: months,
+    datasets: [{ data: mdata, backgroundColor: '#1D9E75', borderRadius: 4 }]
+  }, options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+    scales: { x:{grid:{display:false},ticks:{font:{size:11},color:'#999'}}, y:{min:0,grid:{color:'rgba(0,0,0,.05)'},ticks:{font:{size:11},color:'#999',stepSize:1}} }
+  }});
+}
+
+/* ═══════════════════════════════════════
+   MODAL
+════════════════════════════════════════ */
+function closeModal(e) { if (!e || e.target === document.getElementById('modal-overlay')) document.getElementById('modal-overlay').classList.add('hidden'); }
+
+</script>
+</body>
+</html>
