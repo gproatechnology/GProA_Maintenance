@@ -335,12 +335,16 @@ function loadDB() {
   const raw = localStorage.getItem(DB_KEY);
   if (raw) return JSON.parse(raw);
   
-  // Crear datos de ejemplo con check-ins
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const lastWeek = new Date(today);
-  lastWeek.setDate(lastWeek.getDate() - 7);
+  // Crear datos de ejemplo con check-ins - CORREGIDO
+  const now = new Date();
+  
+  // Función para crear fechas sin modificar el objeto original
+  function createDate(hours, minutes, daysAgo = 0) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - daysAgo);
+    date.setHours(hours, minutes, 0, 0);
+    return date.toISOString();
+  }
   
   const initial = {
     users: [{ user: 'demo', pass: 'demo', role: 'admin' }, { user: 'tecnico', pass: '1234', role: 'tecnico' }],
@@ -353,14 +357,14 @@ function loadDB() {
       { id: 'SENS-01', name: 'Sensor Temperatura', status: 'Operativo',    loc: 'Zona 5',          lat: 21.0035, lng: -100.3845 },
     ],
     checkins: [
-      { device: 'PUMP-01', tech: 'admin', notes: 'Mantenimiento preventivo', status: 'Operativo', lat: 21.0040, lng: -100.3860, ts: new Date(today.setHours(9,30,0,0)).toISOString() },
-      { device: 'PUMP-02', tech: 'admin', notes: 'Revisión programada', status: 'Revisión', lat: 20.9990, lng: -100.3820, ts: new Date(today.setHours(10,15,0,0)).toISOString() },
-      { device: 'COMP-01', tech: 'tecnico', notes: 'Funcionamiento normal', status: 'Operativo', lat: 21.0010, lng: -100.3780, ts: new Date(today.setHours(11,0,0,0)).toISOString() },
-      { device: 'GEN-01', tech: 'tecnico', notes: 'Cambio de aceite', status: 'Mantenimiento', lat: 21.0060, lng: -100.3810, ts: new Date(yesterday.setHours(14,30,0,0)).toISOString() },
-      { device: 'VALVE-01', tech: 'admin', notes: 'Fuga detectada', status: 'Falla', lat: 21.0020, lng: -100.3900, ts: new Date(yesterday.setHours(16,45,0,0)).toISOString() },
-      { device: 'SENS-01', tech: 'tecnico', notes: 'Calibración', status: 'Operativo', lat: 21.0035, lng: -100.3845, ts: new Date(lastWeek.setHours(13,20,0,0)).toISOString() },
-      { device: 'PUMP-01', tech: 'admin', notes: 'Inspección', status: 'Operativo', lat: 21.0040, lng: -100.3860, ts: new Date(lastWeek.setHours(15,10,0,0)).toISOString() },
-      { device: 'COMP-01', tech: 'tecnico', notes: 'Mantenimiento rutinario', status: 'Operativo', lat: 21.0010, lng: -100.3780, ts: new Date(lastWeek.setHours(9,0,0,0)).toISOString() }
+      { device: 'PUMP-01', tech: 'demo', notes: 'Mantenimiento preventivo', status: 'Operativo', lat: 21.0040, lng: -100.3860, ts: createDate(9, 30, 0) },
+      { device: 'PUMP-02', tech: 'demo', notes: 'Revisión programada', status: 'Revisión', lat: 20.9990, lng: -100.3820, ts: createDate(10, 15, 0) },
+      { device: 'COMP-01', tech: 'tecnico', notes: 'Funcionamiento normal', status: 'Operativo', lat: 21.0010, lng: -100.3780, ts: createDate(11, 0, 0) },
+      { device: 'GEN-01', tech: 'tecnico', notes: 'Cambio de aceite', status: 'Mantenimiento', lat: 21.0060, lng: -100.3810, ts: createDate(14, 30, 1) },
+      { device: 'VALVE-01', tech: 'demo', notes: 'Fuga detectada', status: 'Falla', lat: 21.0020, lng: -100.3900, ts: createDate(16, 45, 1) },
+      { device: 'SENS-01', tech: 'tecnico', notes: 'Calibración', status: 'Operativo', lat: 21.0035, lng: -100.3845, ts: createDate(13, 20, 7) },
+      { device: 'PUMP-01', tech: 'demo', notes: 'Inspección', status: 'Operativo', lat: 21.0040, lng: -100.3860, ts: createDate(15, 10, 7) },
+      { device: 'COMP-01', tech: 'tecnico', notes: 'Mantenimiento rutinario', status: 'Operativo', lat: 21.0010, lng: -100.3780, ts: createDate(9, 0, 7) }
     ]
   };
   localStorage.setItem(DB_KEY, JSON.stringify(initial));
@@ -379,7 +383,10 @@ function doLogin() {
   const u = document.getElementById('l-user').value.trim();
   const p = document.getElementById('l-pass').value;
   const found = DB.users.find(x => x.user === u && x.pass === p);
-  if (!found) { document.getElementById('login-err').style.display = 'block'; return; }
+  if (!found) { 
+    document.getElementById('login-err').style.display = 'block'; 
+    return; 
+  }
   currentUser = found;
   sessionStorage.setItem('mc_user', JSON.stringify(found));
   document.getElementById('login-screen').style.display = 'none';
@@ -413,7 +420,7 @@ function showPage(id) {
   if (id === 'map' && !mapInit) { initMap(); mapInit = true; }
   if (id === 'devices') renderDevices();
   if (id === 'history') renderHistory();
-  if (id === 'reports') renderReports();
+  if (id === 'reports' && !repInit) { renderReports(); repInit = true; }
 }
 
 function openSidebar() { document.getElementById('sidebar').classList.add('open'); document.getElementById('sidebarOverlay').classList.add('show'); }
@@ -448,15 +455,20 @@ function startApp() {
 // Auto-login si hay sesión guardada
 const saved = sessionStorage.getItem('mc_user');
 if (saved) { 
-  currentUser = JSON.parse(saved); 
-  document.getElementById('login-screen').style.display = 'none'; 
-  document.getElementById('app').style.display = 'flex'; 
-  
-  // Ejecutar startApp cuando el DOM esté completamente cargado
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => startApp());
-  } else {
-    startApp();
+  try {
+    currentUser = JSON.parse(saved); 
+    document.getElementById('login-screen').style.display = 'none'; 
+    document.getElementById('app').style.display = 'flex'; 
+    
+    // Ejecutar startApp cuando el DOM esté completamente cargado
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => startApp());
+    } else {
+      startApp();
+    }
+  } catch(e) {
+    console.error('Error en auto-login:', e);
+    sessionStorage.removeItem('mc_user');
   }
 }
 
@@ -803,7 +815,6 @@ function exportCSV() {
    REPORTS
 ════════════════════════════════════════ */
 function renderReports() {
-  if (repInit) return; repInit = true;
   const bs = s => DB.devices.filter(d => d.status === s).length;
   document.getElementById('r-ok').textContent  = bs('Operativo');
   document.getElementById('r-rev').textContent = bs('Revisión');
