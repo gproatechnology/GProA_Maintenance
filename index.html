@@ -211,10 +211,10 @@ tr:hover td{background:var(--s2);}
     <!-- DASHBOARD -->
     <div class="page" id="page-dashboard">
       <div class="metrics">
-        <div class="mc"><div class="lbl">Total dispositivos</div><div class="val" id="m-total">0</div><div class="dlt up" id="m-total-d"></div></div>
-        <div class="mc"><div class="lbl">Check-ins totales</div><div class="val" id="m-ci">0</div><div class="dlt up" id="m-ci-d"></div></div>
-        <div class="mc"><div class="lbl">Técnicos activos</div><div class="val" id="m-tech">0</div><div class="dlt up"></div></div>
-        <div class="mc"><div class="lbl">Check-ins hoy</div><div class="val" id="m-today">0</div><div class="dlt up" id="m-today-d"></div></div>
+        <div class="mc"><div class="lbl">Total dispositivos</div><div class="val" id="m-total">6</div><div class="dlt up" id="m-total-d">+2 esta semana</div></div>
+        <div class="mc"><div class="lbl">Check-ins totales</div><div class="val" id="m-ci">24</div><div class="dlt up" id="m-ci-d">+8 último mes</div></div>
+        <div class="mc"><div class="lbl">Técnicos activos</div><div class="val" id="m-tech">4</div><div class="dlt up">3 hoy</div></div>
+        <div class="mc"><div class="lbl">Check-ins hoy</div><div class="val" id="m-today">7</div><div class="dlt up" id="m-today-d">+3 más que ayer</div></div>
       </div>
       <div class="panels">
         <div class="panel">
@@ -334,6 +334,14 @@ const DB_KEY = 'mantcontrol_v2';
 function loadDB() {
   const raw = localStorage.getItem(DB_KEY);
   if (raw) return JSON.parse(raw);
+  
+  // Crear datos de ejemplo con check-ins
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const lastWeek = new Date(today);
+  lastWeek.setDate(lastWeek.getDate() - 7);
+  
   const initial = {
     users: [{ user: 'admin', pass: 'Max123', role: 'admin' }, { user: 'tecnico', pass: '1234', role: 'tecnico' }],
     devices: [
@@ -344,7 +352,16 @@ function loadDB() {
       { id: 'VALVE-01',name: 'Válvula Control',    status: 'Falla',        loc: 'Sector 3',        lat: 21.0020, lng: -100.3900 },
       { id: 'SENS-01', name: 'Sensor Temperatura', status: 'Operativo',    loc: 'Zona 5',          lat: 21.0035, lng: -100.3845 },
     ],
-    checkins: []
+    checkins: [
+      { device: 'PUMP-01', tech: 'admin', notes: 'Mantenimiento preventivo', status: 'Operativo', lat: 21.0040, lng: -100.3860, ts: new Date(today.setHours(9,30,0,0)).toISOString() },
+      { device: 'PUMP-02', tech: 'admin', notes: 'Revisión programada', status: 'Revisión', lat: 20.9990, lng: -100.3820, ts: new Date(today.setHours(10,15,0,0)).toISOString() },
+      { device: 'COMP-01', tech: 'tecnico', notes: 'Funcionamiento normal', status: 'Operativo', lat: 21.0010, lng: -100.3780, ts: new Date(today.setHours(11,0,0,0)).toISOString() },
+      { device: 'GEN-01', tech: 'tecnico', notes: 'Cambio de aceite', status: 'Mantenimiento', lat: 21.0060, lng: -100.3810, ts: new Date(yesterday.setHours(14,30,0,0)).toISOString() },
+      { device: 'VALVE-01', tech: 'admin', notes: 'Fuga detectada', status: 'Falla', lat: 21.0020, lng: -100.3900, ts: new Date(yesterday.setHours(16,45,0,0)).toISOString() },
+      { device: 'SENS-01', tech: 'tecnico', notes: 'Calibración', status: 'Operativo', lat: 21.0035, lng: -100.3845, ts: new Date(lastWeek.setHours(13,20,0,0)).toISOString() },
+      { device: 'PUMP-01', tech: 'admin', notes: 'Inspección', status: 'Operativo', lat: 21.0040, lng: -100.3860, ts: new Date(lastWeek.setHours(15,10,0,0)).toISOString() },
+      { device: 'COMP-01', tech: 'tecnico', notes: 'Mantenimiento rutinario', status: 'Operativo', lat: 21.0010, lng: -100.3780, ts: new Date(lastWeek.setHours(9,0,0,0)).toISOString() }
+    ]
   };
   localStorage.setItem(DB_KEY, JSON.stringify(initial));
   return initial;
@@ -379,10 +396,6 @@ function doLogout() {
   document.getElementById('l-pass').value = '';
 }
 
-// Auto-login si hay sesión guardada
-const saved = sessionStorage.getItem('mc_user');
-if (saved) { currentUser = JSON.parse(saved); document.getElementById('login-screen').style.display = 'none'; document.getElementById('app').style.display = 'flex'; startApp(); }
-
 /* ═══════════════════════════════════════
    NAV
 ════════════════════════════════════════ */
@@ -415,8 +428,36 @@ function startApp() {
   const u = currentUser.user;
   document.getElementById('user-label').textContent = u;
   document.getElementById('user-avatar').textContent = u[0].toUpperCase();
-  initDashboard();
+  
+  // Actualizar todas las vistas
+  updateDashMetrics();
+  renderDashDevices();
+  renderDashTimeline();
+  buildTrendChart();
   renderDevices();
+  
+  // Iniciar actualización en vivo
+  setInterval(() => {
+    if (document.getElementById('page-dashboard').classList.contains('hidden') === false) {
+      updateDashMetrics();
+      renderDashTimeline();
+    }
+  }, 5000);
+}
+
+// Auto-login si hay sesión guardada
+const saved = sessionStorage.getItem('mc_user');
+if (saved) { 
+  currentUser = JSON.parse(saved); 
+  document.getElementById('login-screen').style.display = 'none'; 
+  document.getElementById('app').style.display = 'flex'; 
+  
+  // Ejecutar startApp cuando el DOM esté completamente cargado
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => startApp());
+  } else {
+    startApp();
+  }
 }
 
 /* ═══════════════════════════════════════
@@ -431,38 +472,44 @@ function today() { return new Date().toISOString().slice(0,10); }
 /* ═══════════════════════════════════════
    DASHBOARD
 ════════════════════════════════════════ */
-function initDashboard() {
-  updateDashMetrics();
+function updateDashMetrics() {
+  const todayCIs = DB.checkins.filter(c => c.ts.slice(0,10) === today()).length;
+  const techs = [...new Set(DB.checkins.map(c => c.tech))].length;
+  
+  // Calcular variaciones
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().slice(0,10);
+  const yesterdayCIs = DB.checkins.filter(c => c.ts.slice(0,10) === yesterdayStr).length;
+  const todayVsYesterday = todayCIs - yesterdayCIs;
+  
+  const lastWeek = new Date();
+  lastWeek.setDate(lastWeek.getDate() - 7);
+  const lastWeekStr = lastWeek.toISOString().slice(0,10);
+  const lastWeekCIs = DB.checkins.filter(c => c.ts.slice(0,10) >= lastWeekStr).length;
+  const prevWeek = new Date();
+  prevWeek.setDate(prevWeek.getDate() - 14);
+  const prevWeekStr = prevWeek.toISOString().slice(0,10);
+  const prevWeekCIs = DB.checkins.filter(c => c.ts.slice(0,10) >= prevWeekStr && c.ts.slice(0,10) < lastWeekStr).length;
+  const weekDiff = lastWeekCIs - prevWeekCIs;
+  
+  document.getElementById('m-total').textContent = DB.devices.length;
+  document.getElementById('m-ci').textContent = DB.checkins.length;
+  document.getElementById('m-tech').textContent = techs;
+  document.getElementById('m-today').textContent = todayCIs;
+  
+  document.getElementById('m-total-d').innerHTML = todayCIs > 0 ? `+${todayCIs} hoy` : 'Sin check-ins hoy';
+  document.getElementById('m-ci-d').innerHTML = weekDiff > 0 ? `+${weekDiff} esta semana` : weekDiff < 0 ? `${weekDiff} esta semana` : 'Sin cambios';
+  document.getElementById('m-today-d').innerHTML = todayVsYesterday > 0 ? `+${todayVsYesterday} vs ayer` : todayVsYesterday < 0 ? `${todayVsYesterday} vs ayer` : 'Igual que ayer';
+}
 
-  // Devices list
+function renderDashDevices() {
   document.getElementById('dash-devices').innerHTML = DB.devices.slice(0, 5).map(d => `
     <div class="drow">
       <div class="dicon" style="background:${SC[d.status]}22">${oi(d.id)}</div>
       <div class="dinfo"><div class="dname">${d.name}</div><div class="dloc">${d.loc}</div></div>
       ${bh(d.status)}
     </div>`).join('');
-
-  // Timeline from recent checkins
-  renderDashTimeline();
-
-  // Trend chart
-  buildTrendChart();
-
-  // Live counter
-  setInterval(() => {
-    updateDashMetrics();
-    renderDashTimeline();
-  }, 5000);
-}
-
-function updateDashMetrics() {
-  const todayCIs = DB.checkins.filter(c => c.ts.slice(0,10) === today()).length;
-  const techs = [...new Set(DB.checkins.map(c => c.tech))].length;
-  document.getElementById('m-total').textContent = DB.devices.length;
-  document.getElementById('m-ci').textContent = DB.checkins.length;
-  document.getElementById('m-tech').textContent = techs;
-  document.getElementById('m-today').textContent = todayCIs;
-  document.getElementById('m-today-d').textContent = todayCIs > 0 ? `+${todayCIs} hoy` : 'Sin check-ins hoy';
 }
 
 function renderDashTimeline() {
